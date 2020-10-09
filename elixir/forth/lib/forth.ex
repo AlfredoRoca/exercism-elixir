@@ -24,18 +24,23 @@ defmodule Forth do
   def eval(%{stack: stack}, s) do
     cond do
       Regex.match?(~r": .+ ;", s) ->
-        [[": ", new_word, " ", translation, " ;"]] =
-          Regex.scan(~r"(: )([a-zA-Z-]+)( )([a-zA-Z-\s]+)( ;)", s, capture: :all_but_first)
+        [[": ", new_word, " ", translation, " ;", rest]] =
+          Regex.scan(~r"(: )([€\da-zA-Z-]+)( )([\da-zA-Z-\s]+)( ;)(.*)", s,
+            capture: :all_but_first
+          )
 
         Forth.NewWords.put(new_word, translation)
-        %{stack: stack}
+
+        case rest do
+          "" -> %{stack: stack}
+          _ -> eval(%{stack: stack}, rest)
+        end
 
       true ->
-        ev = String.split(s, " ")
+        # separators are non-word simbols except operators and special characters
+        ev = String.split(s, ~r"[^\w-+*/€]|[ ]", trim: true)
         %{stack: parse(ev, stack)}
     end
-
-    # |> String.split(~r{[\x00-\x30\u1680]}, trim: true)
   end
 
   def parse(ev, stack) do
@@ -44,6 +49,8 @@ defmodule Forth do
     end)
     |> Enum.reverse()
   end
+
+  def do_parse("", stack), do: stack
 
   def do_parse(h, stack) do
     cond do
@@ -55,9 +62,6 @@ defmodule Forth do
         # run operation
         [n2 | [n1 | remaining_stack]] = stack
         [run_op(String.to_integer(n1), String.to_integer(n2), h) | remaining_stack]
-
-      is_nil(translate_word(h)) ->
-        stack
 
       true ->
         Enum.reduce(translate_word(h), stack, fn w, st ->
@@ -73,7 +77,7 @@ defmodule Forth do
 
   def translate_word(h) do
     case tr = h |> String.upcase() |> Forth.NewWords.translate() do
-      nil -> nil
+      nil -> raise Forth.UnknownWord
       _ -> String.split(tr, " ")
     end
   end
@@ -130,7 +134,11 @@ defmodule Forth do
     end
 
     def put(word, translation) do
-      Agent.update(__MODULE__, &Map.put(&1, String.upcase(word), String.upcase(translation)))
+      if Regex.match?(~r"[0-9]+", word) do
+        raise(Forth.InvalidWord)
+      else
+        Agent.update(__MODULE__, &Map.put(&1, String.upcase(word), String.upcase(translation)))
+      end
     end
 
     def translate(word) do

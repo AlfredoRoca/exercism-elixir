@@ -17,7 +17,7 @@ defmodule ForthTest do
     assert s == "1 2 3 4 5"
   end
 
-  @tag :pending
+  # @tag :pending
   test "non-word characters are separators" do
     # Note the Ogham Space Mark ( ), this is a spacing character.
     s =
@@ -197,14 +197,14 @@ defmodule ForthTest do
     assert s == "220371"
   end
 
-  @tag :pending
+  # @tag :pending
   test "defining a number" do
     assert_raise Forth.InvalidWord, fn ->
       Forth.new() |> Forth.eval(": 1 2 ;")
     end
   end
 
-  @tag :pending
+  # @tag :pending
   test "calling a non-existing word" do
     assert_raise Forth.UnknownWord, fn ->
       Forth.new() |> Forth.eval("1 foo")
