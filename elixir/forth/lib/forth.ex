@@ -38,45 +38,45 @@ defmodule Forth do
 
       true ->
         # separators are non-word simbols except operators and special characters
-        ev = String.split(s, ~r"[^\w-+*/€]|[ ]", trim: true)
-        %{stack: parse(ev, stack)}
+        items = String.split(s, ~r"[^\w-+*/€]|[ ]", trim: true)
+        %{stack: parse(items, stack)}
     end
   end
 
-  def parse(ev, stack) do
-    Enum.reduce(ev, stack, fn h, st ->
-      do_parse(h, st)
+  def parse(items, stack) do
+    Enum.reduce(items, stack, fn item, st ->
+      do_parse(item, st)
     end)
     |> Enum.reverse()
   end
 
   def do_parse("", stack), do: stack
 
-  def do_parse(h, stack) do
+  def do_parse(item, stack) do
     cond do
-      Regex.match?(~r/[0-9]/, h) ->
+      Regex.match?(~r/[0-9]/, item) ->
         # push number to the stack
-        [h | stack]
+        [item | stack]
 
-      Enum.member?(@operators, h) ->
+      Enum.member?(@operators, item) ->
         # run operation
         [n2 | [n1 | remaining_stack]] = stack
-        [run_op(String.to_integer(n1), String.to_integer(n2), h) | remaining_stack]
+        [run_op(String.to_integer(n1), String.to_integer(n2), item) | remaining_stack]
 
       true ->
-        Enum.reduce(translate_word(h), stack, fn w, st ->
-          if Enum.member?(@reserved_words, w) do
+        Enum.reduce(translate_word(item), stack, fn word, st ->
+          if Enum.member?(@reserved_words, word) do
             # execute reserved word
-            run_word(w, st)
+            run_word(word, st)
           else
-            do_parse(w, st)
+            do_parse(word, st)
           end
         end)
     end
   end
 
-  def translate_word(h) do
-    case tr = h |> String.upcase() |> Forth.NewWords.translate() do
+  def translate_word(word) do
+    case tr = word |> String.upcase() |> Forth.NewWords.translate() do
       nil -> raise Forth.UnknownWord
       _ -> String.split(tr, " ")
     end
@@ -135,6 +135,7 @@ defmodule Forth do
 
     def put(word, translation) do
       if Regex.match?(~r"[0-9]+", word) do
+        # numbers as new words are not allowed
         raise(Forth.InvalidWord)
       else
         Agent.update(__MODULE__, &Map.put(&1, String.upcase(word), String.upcase(translation)))
