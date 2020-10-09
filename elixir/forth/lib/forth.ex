@@ -113,11 +113,7 @@ defmodule Forth do
   being the rightmost element in the string.
   """
   @spec format_stack(evaluator) :: String.t()
-  def format_stack(%{stack: []}), do: ""
-
-  def format_stack(%{stack: stack}) do
-    Enum.join(stack, " ")
-  end
+  def format_stack(%{stack: stack}), do: Enum.join(stack, " ")
 
   defmodule NewWords do
     use Agent
