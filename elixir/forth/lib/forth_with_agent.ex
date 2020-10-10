@@ -1,37 +1,27 @@
 defmodule Forth do
   @type evaluator :: any
   @operators String.split("+-*/", "", trim: true)
-  @reserved_words "DUP DROP SWAP OVER"
-
-  def start(_start_type, _start_args) do
-    # __MODULE__.new() |> __MODULE__.eval("1 foo") |> __MODULE__.format_stack()
-    Supervisor.start_link([], strategy: :one_for_one)
-  end
+  @reserved_words String.split("DUP DROP SWAP OVER")
 
   @doc """
   Create a new evaluator.
   """
   @spec new() :: evaluator
   def new() do
-    %{
-      stack: [],
-      dictionary: initialize_dictionary()
-    }
+    Forth.NewWords.new()
+    push_reserved_words_to_dictionary()
+    %{stack: []}
   end
 
-  def initialize_dictionary() do
-    @reserved_words
-    |> String.split()
-    |> Enum.reduce(%{}, &Map.put(&2, &1, &1))
+  def push_reserved_words_to_dictionary do
+    @reserved_words |> Enum.each(&Forth.NewWords.put(&1, &1))
   end
 
   @doc """
   Evaluate an input string, updating the evaluator state.
   """
   @spec eval(evaluator, String.t()) :: evaluator
-  def eval(ev = %{stack: stack, dictionary: dictionary}, s) do
-    s = String.upcase(s)
-
+  def eval(%{stack: stack}, s) do
     cond do
       Regex.match?(~r": .+ ;", s) ->
         [[": ", new_word, " ", translation, " ;", rest]] =
@@ -39,36 +29,30 @@ defmodule Forth do
             capture: :all_but_first
           )
 
-        case Integer.parse(new_word) do
-          {_number, ""} -> raise Forth.InvalidWord
-          _ -> nil
-        end
+        Forth.NewWords.put(new_word, translation)
 
-        new_dictionary = Map.put(dictionary, new_word, translation)
-
-        case String.trim(rest) do
-          "" -> %{ev | dictionary: new_dictionary}
-          _ -> eval(%{ev | dictionary: new_dictionary}, rest)
+        case rest do
+          "" -> %{stack: stack}
+          _ -> eval(%{stack: stack}, rest)
         end
 
       true ->
         # separators are non-word simbols except operators and special characters
         items = String.split(s, ~r"[^\w-+*/€]|[ ]", trim: true)
-        parse(items, %{ev | stack: stack})
+        %{stack: parse(items, stack)}
     end
   end
 
-  # def parse(items, ev = %{stack: stack, dictionary: dictionary}) do
-  def parse(items, ev = %{stack: stack, dictionary: _dictionary}) do
+  def parse(items, stack) do
     Enum.reduce(items, stack, fn item, st ->
-      do_parse(item, %{ev | stack: st})
+      do_parse(item, st)
     end)
     |> Enum.reverse()
   end
 
-  def do_parse("", ev), do: ev
+  def do_parse("", stack), do: stack
 
-  def do_parse(item, ev = %{stack: stack, dictionary: dictionary}) do
+  def do_parse(item, stack) do
     cond do
       Regex.match?(~r/[0-9]/, item) ->
         # push number to the stack
@@ -80,24 +64,12 @@ defmodule Forth do
         [run_op(String.to_integer(n1), String.to_integer(n2), item) | remaining_stack]
 
       true ->
-        case translation = Map.get(dictionary, item) do
-          nil -> raise Forth.UnknownWord
-          _ -> nil
-        end
-
-        translation
-        |> String.split()
-        |> Enum.reduce(stack, fn word, st ->
-          cond do
-            is_nil(word) ->
-              raise Forth.UnknownWord
-
-            String.contains?(@reserved_words, word) ->
-              # execute reserved word
-              run_word(word, st)
-
-            true ->
-              do_parse(word, %{ev | stack: st})
+        Enum.reduce(translate_word(item), stack, fn word, st ->
+          if Enum.member?(@reserved_words, word) do
+            # execute reserved word
+            run_word(word, st)
+          else
+            do_parse(word, st)
           end
         end)
     end
@@ -142,7 +114,6 @@ defmodule Forth do
   """
   @spec format_stack(evaluator) :: String.t()
   def format_stack(%{stack: stack}), do: Enum.join(stack, " ")
-  def format_stack(stack), do: Enum.join(stack, " ")
 
   defmodule NewWords do
     use Agent

@@ -74,8 +74,6 @@ defmodule ForthTest do
   end
 
   # @tag :pending
-  @tag f: true
-
   test "dup 3" do
     assert_raise Forth.StackUnderflow, fn ->
       Forth.new() |> Forth.eval("dup")
