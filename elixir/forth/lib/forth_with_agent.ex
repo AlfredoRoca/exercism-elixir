@@ -1,4 +1,4 @@
-defmodule Forth do
+defmodule Forth_old do
   @type evaluator :: any
   @operators String.split("+-*/", "", trim: true)
   @reserved_words String.split("DUP DROP SWAP OVER")
